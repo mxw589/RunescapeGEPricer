@@ -4,6 +4,10 @@ from math import floor
 import requests
 import json
 
+MAX_SEARCH_ITEMS = 9
+
+UNIQUE_SEARCH_TERMS_JSON = "unique_search_terms.json"
+
 
 def buy_sell_item(item_id):
     url = f"https://prices.runescape.wiki/api/v1/osrs/latest?id={item_id}"
@@ -31,6 +35,69 @@ def item_mapping():
     filtered_items = {item["id"]: item["name"] for item in data}
     return filtered_items
 
+def find_shortest_unique_search_terms(items):
+    name_item_id = {items[item].lower(): item for item in items}
+
+    item_id_search_terms = {}
+    uniques_tree = unique_string_tree('', list(name_item_id.keys()))
+
+    for name in uniques_tree:
+        item_id_search_terms[name_item_id[name]] = uniques_tree[name]
+
+    return item_id_search_terms
+
+def unique_string_tree(term, names):
+    matching_names = names_matching_term(term, names)
+    result = {}
+    if len(matching_names) <= MAX_SEARCH_ITEMS:
+        for name in matching_names:
+            result[name] = term
+    else:
+        if term in matching_names:
+            result[term] = term
+
+        next_chars = set()
+        for chars in matching_names.values():
+            next_chars.update(chars)
+
+        if len(next_chars) != 0:
+            for char in next_chars:
+                ust = unique_string_tree(term + char, matching_names)
+                for n, t in ust.items():
+                    if n not in result or len(result[n]) > len(t):
+                        result[n] = t
+
+    return result
+
+def names_matching_term(current_term, names):
+    matching_names = {}
+
+    for name in names:
+        indexes = find_all_indexes(name, current_term)
+        if len(indexes) > 0:
+            matching_names[name] = find_next_letters(name, indexes, current_term)
+
+    return matching_names
+
+def find_next_letters(name, indexes, current_term):
+    next_letters = set()
+    term_length = len(current_term)
+    for idx in indexes:
+        next_letter_idx = idx + term_length
+        if next_letter_idx < len(name):
+            next_letters.add(name[next_letter_idx])
+    return list(next_letters)
+
+def find_all_indexes(item, substring):
+    indexes = []
+    start = 0
+    while True:
+        idx = item.find(substring, start)
+        if idx == -1:
+            break
+        indexes.append(idx)
+        start = idx + 1  # Move past the last found index
+    return indexes
 
 def gather_item_details(items):
     buy_items = {}
@@ -115,9 +182,10 @@ def print_table(header_row_producers, row_items):
 
 
 
-def print_results(items, buy_items, sell_item):
+def print_results(items, buy_items, sell_item, unique_search_terms):
     header_row_producers = [
         {"header": "Item Name", "producer": lambda item: items[int(item)]},
+        {"header": "Search Term", "producer": lambda item: unique_search_terms.get(int(item), "")},
         {"header": "Buy Price", "producer": lambda item: str(buy_items[item]["buy_price"])},
         {"header": "Quantity", "producer": lambda item: str(buy_items[item]["purchaseQuantity"])},
     ]
@@ -129,6 +197,17 @@ def print_results(items, buy_items, sell_item):
 # noinspection PyTypeChecker
 def perform_pricing():
     items = item_mapping()
+    try:
+        with open(UNIQUE_SEARCH_TERMS_JSON, "r") as f:
+            unique_search_terms = json.load(f)
+            unique_search_terms = {int(k): v for k, v in unique_search_terms.items()}
+            if set(unique_search_terms.keys()) != set(items.keys()):
+                unique_search_terms = find_shortest_unique_search_terms(items)
+                json.dump(unique_search_terms, open(UNIQUE_SEARCH_TERMS_JSON, "w"))
+    except FileNotFoundError:
+        unique_search_terms = find_shortest_unique_search_terms(items)
+        json.dump(unique_search_terms, open(UNIQUE_SEARCH_TERMS_JSON, "w"), indent=4)
+
     buy_items = {}
     sell_item = {}
     print("Welcome to the RuneScape Price Checker!")
@@ -141,7 +220,7 @@ def perform_pricing():
             {"header": "Sell Item", "producer": lambda item: items[file_details[item]["data"]["sell_item"]["item_id"]]},
         ]
 
-        for file_name in [f for f in os.listdir() if f.endswith('.json')]:
+        for file_name in [f for f in os.listdir() if f.endswith('.json') and f != UNIQUE_SEARCH_TERMS_JSON]:
             try:
                 with open(f"{file_name.strip()}", "r") as f:
                     file_details[file_name] = {"data": json.load(f)}
@@ -172,7 +251,7 @@ def perform_pricing():
             print("Inputs not saved.")
 
     while True:
-        price(buy_items, items, sell_item)
+        price(buy_items, items, sell_item, unique_search_terms)
         cont = input("Exit, Refresh, or reStart? (e/r/s): ")
         if cont.lower() == 's':
             perform_pricing()
@@ -182,7 +261,7 @@ def perform_pricing():
             break
 
 
-def price(buy_items, items, sell_item):
+def price(buy_items, items, sell_item, unique_search_terms):
     for buy_item in buy_items:
         try:
             buy_price, _ = buy_sell_item(buy_item)
@@ -219,7 +298,7 @@ def price(buy_items, items, sell_item):
     purchasable_items = floor(total_cash // total_price)
     for item_id in buy_items:
         buy_items[item_id]["purchaseQuantity"] = buy_items[item_id]["quantity"] * purchasable_items
-    print_results(items, buy_items, sell_item)
+    print_results(items, buy_items, sell_item, unique_search_terms)
 
     print(
         f"Total cash: {total_cash}, You can make {purchasable_items}. Final cash: {purchasable_items * ratioed_sell_item}")
