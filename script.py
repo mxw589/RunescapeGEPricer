@@ -91,22 +91,38 @@ def item_id_from_input(item_id_input, items):
             raise ValueError("Item not found.")
     return item_id
 
+def print_table(header_row_producers, row_items):
+    row_values = [0] * (len(row_items) + 1)
+    longest_column = [0] * len(header_row_producers)
+    row_values[0] = [0] * len(header_row_producers)
+
+    for i, hrp in enumerate(header_row_producers):
+        row_values[0][i] = hrp["header"]
+        longest_column[i] = len(hrp["header"])
+
+    for i, item in enumerate(row_items):
+        row_values[i + 1] = [0] * len(header_row_producers)
+        for j, hrp in enumerate(header_row_producers):
+            row_values[i + 1][j] = hrp["producer"](item)
+            longest_column[j] = max(longest_column[j], len(str(row_values[i + 1][j])))
+
+    print(f"--{'---'.join(['-' *  column for column in longest_column])}--")
+    for i, row_value in enumerate(row_values):
+        print(f"| {' | '.join([str(row).ljust(longest_column[j]) for j, row in enumerate(row_value)])} |")
+        if i == 0:
+            print(f"--{'---'.join(['-' * column for column in longest_column])}--")
+    print(f"--{'---'.join(['-' * column for column in longest_column])}--")
+
+
 
 def print_results(items, buy_items, sell_item):
-    longest_name = max(max([len(items[int(item_id)]) for item_id in buy_items]), len("Item Name"))
-    longest_price = max(max([(buy_items[item_id]["buy_price"] % 10) for item_id in buy_items]), len("Buy Price"))
-    longest_quantity = max(max([(buy_items[item_id]["purchaseQuantity"] % 10) for item_id in buy_items]),
-                           len("Quantity"))
-    print(f"--{'-' * longest_name}---{'-' * longest_price}---{'-' * longest_quantity}--")
-    print(
-        f"| {'Item Name'.ljust(longest_name)} | {'Buy Price'.ljust(longest_price)} | {'Quantity'.ljust(longest_quantity)} |")
-    print(f"--{'-' * longest_name}---{'-' * longest_price}---{'-' * longest_quantity}--")
-    for item_id in buy_items:
-        item_name = items[int(item_id)].ljust(longest_name)
-        item_price = str(buy_items[item_id]["buy_price"]).ljust(longest_price)
-        item_quantity = str(buy_items[item_id]["purchaseQuantity"]).ljust(longest_quantity)
-        print(f"| {item_name} | {item_price} | {item_quantity} |")
-    print(f"--{'-' * longest_name}---{'-' * longest_price}---{'-' * longest_quantity}--")
+    header_row_producers = [
+        {"header": "Item Name", "producer": lambda item: items[int(item)]},
+        {"header": "Buy Price", "producer": lambda item: str(buy_items[item]["buy_price"])},
+        {"header": "Quantity", "producer": lambda item: str(buy_items[item]["purchaseQuantity"])},
+    ]
+
+    print_table(header_row_producers, buy_items)
     print(f"Sell Item: {items[sell_item['item_id']]} for {sell_item['sell_item']}")
 
 
@@ -119,18 +135,27 @@ def perform_pricing():
     print("This tool will help you calculate the profit from buying and selling items in RuneScape.")
     load_format_input = input("Would you like to load from a file or build?: (l/b) ")
     if load_format_input.lower() == 'l':
-        print(f"Available files: {', '.join([f for f in os.listdir() if f.endswith('.json')])}")
+        file_details = {}
+        header_row_producers = [
+            {"header": "File Name", "producer": lambda item: item},
+            {"header": "Sell Item", "producer": lambda item: items[file_details[item]["data"]["sell_item"]["item_id"]]},
+        ]
+
+        for file_name in [f for f in os.listdir() if f.endswith('.json')]:
+            try:
+                with open(f"{file_name.strip()}", "r") as f:
+                    file_details[file_name] = {"data": json.load(f)}
+            except FileNotFoundError as e:
+                print(f"File {file_name.strip()}.json not found. Starting fresh. {e}")
+            except json.JSONDecodeError as e:
+                print(f"Error decoding JSON from {file_name.strip()}.json. {e}")
+
+        print_table(header_row_producers, file_details)
         file_name = input("Enter the name of the file to load (without .json): ")
-        try:
-            with open(f"{file_name.strip()}.json", "r") as f:
-                data = json.load(f)
-                buy_items = data.get("buy_items", {})
-                sell_item = data.get("sell_item", {})
-                print("Data loaded successfully.")
-        except FileNotFoundError as e:
-            print(f"File {file_name.strip()}.json not found. Starting fresh. {e}")
-        except json.JSONDecodeError as e:
-            print(f"Error decoding JSON from the file. {e}")
+
+        file_data = file_details[f'{file_name}.json']["data"]
+        buy_items = file_data.get("buy_items", {})
+        sell_item = file_data.get("sell_item", {})
     else:
         buy_items = gather_item_details(items)
         sell_item = gather_sell_item(items)
@@ -148,10 +173,11 @@ def perform_pricing():
 
     while True:
         price(buy_items, items, sell_item)
-        cont = input("Exit or restart? (y/n/r): ")
-        if cont.lower() == 'r':
+        cont = input("Exit, Refresh, or reStart? (e/r/s): ")
+        if cont.lower() == 's':
             perform_pricing()
-        elif cont.lower() != 'y':
+            break
+        elif cont.lower() != 'r':
             print("Exiting the RuneScape Price Checker. Goodbye!")
             break
 
@@ -194,6 +220,7 @@ def price(buy_items, items, sell_item):
     for item_id in buy_items:
         buy_items[item_id]["purchaseQuantity"] = buy_items[item_id]["quantity"] * purchasable_items
     print_results(items, buy_items, sell_item)
+
     print(
         f"Total cash: {total_cash}, You can make {purchasable_items}. Final cash: {purchasable_items * ratioed_sell_item}")
 
