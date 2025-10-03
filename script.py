@@ -13,8 +13,8 @@ def buy_sell_item(item_id):
     }
     response = requests.get(url, headers=headers)  #
     # print(dump.dump_all(response).decode("utf-8"))
-    response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
-    data = response.json()  # Parse the JSON response
+    response.raise_for_status()
+    data = response.json()
     return data["data"][f"{item_id}"]["high"], data["data"][f"{item_id}"]["low"]
 
 
@@ -26,8 +26,8 @@ def item_mapping():
     }
     response = requests.get(url, headers=headers)  #
     # print(dump.dump_all(response).decode("utf-8"))
-    response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
-    data = response.json()  # Parse the JSON response
+    response.raise_for_status()
+    data = response.json()
     filtered_items = {item["id"]: item["name"] for item in data}
     return filtered_items
 
