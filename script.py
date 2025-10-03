@@ -4,17 +4,19 @@ from math import floor
 import requests
 import json
 
+
 def buy_sell_item(item_id):
     url = f"https://prices.runescape.wiki/api/v1/osrs/latest?id={item_id}"
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "MyRuneScapePriceChecker/1.0"
     }
-    response = requests.get(url, headers=headers)#
+    response = requests.get(url, headers=headers)  #
     # print(dump.dump_all(response).decode("utf-8"))
     response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
     data = response.json()  # Parse the JSON response
     return data["data"][f"{item_id}"]["high"], data["data"][f"{item_id}"]["low"]
+
 
 def item_mapping():
     url = f"https://prices.runescape.wiki/api/v1/osrs/mapping"
@@ -22,7 +24,7 @@ def item_mapping():
         "Content-Type": "application/json",
         "User-Agent": "MyRuneScapePriceChecker/1.0"
     }
-    response = requests.get(url, headers=headers)#
+    response = requests.get(url, headers=headers)  #
     # print(dump.dump_all(response).decode("utf-8"))
     response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
     data = response.json()  # Parse the JSON response
@@ -50,6 +52,7 @@ def gather_item_details(items):
             print(f"Error: {e}")
 
     return buy_items
+
 
 def gather_sell_item(items):
     sell_item = {}
@@ -92,7 +95,8 @@ def item_id_from_input(item_id_input, items):
 def print_results(items, buy_items, sell_item):
     longest_name = max(max([len(items[int(item_id)]) for item_id in buy_items]), len("Item Name"))
     longest_price = max(max([(buy_items[item_id]["buy_price"] % 10) for item_id in buy_items]), len("Buy Price"))
-    longest_quantity = max(max([(buy_items[item_id]["purchaseQuantity"] % 10) for item_id in buy_items]), len("Quantity"))
+    longest_quantity = max(max([(buy_items[item_id]["purchaseQuantity"] % 10) for item_id in buy_items]),
+                           len("Quantity"))
     print(f"--{'-' * longest_name}---{'-' * longest_price}---{'-' * longest_quantity}--")
     print(
         f"| {'Item Name'.ljust(longest_name)} | {'Buy Price'.ljust(longest_price)} | {'Quantity'.ljust(longest_quantity)} |")
@@ -144,8 +148,10 @@ def perform_pricing():
 
     while True:
         price(buy_items, items, sell_item)
-        cont = input("Refresh? (y/n): ")
-        if cont.lower() != 'y':
+        cont = input("Exit or restart? (y/n/r): ")
+        if cont.lower() == 'r':
+            perform_pricing()
+        elif cont.lower() != 'y':
             print("Exiting the RuneScape Price Checker. Goodbye!")
             break
 
@@ -194,7 +200,3 @@ def price(buy_items, items, sell_item):
 
 if __name__ == '__main__':
     perform_pricing()
-
-
-
-

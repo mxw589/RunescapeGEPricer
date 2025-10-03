@@ -1,0 +1,14 @@
+{
+    "buy_items": {
+        "9380": {
+            "quantity": 1
+        },
+        "9191": {
+            "quantity": 1
+        }
+    },
+    "sell_item": {
+        "item_id": 9339,
+        "ratio": 1.0
+    }
+}
